@@ -11,52 +11,61 @@ def index():
     filename = None
     top_fast = []
     top_slow = []
+    categories = []
+    selected_category = request.form.get('category', 'ALL') if request.method == 'POST' else 'ALL'
     
     if request.method == 'POST':
-        if 'file' not in request.files:
-            return redirect(request.url)
-        
-        file = request.files['file']
-        if file.filename == '':
-            return redirect(request.url)
-        
-        if file:
+        # Check if file was uploaded or if we are filtering an existing session
+        # In a serverless stateless setup, we read from file upload
+        if 'file' in request.files and request.files['file'].filename != '':
+            file = request.files['file']
             filename = file.filename
             file_bytes = file.read()
             df = pd.read_excel(io.BytesIO(file_bytes))
             
-            # Clean column names (strip trailing spaces if any)
+            # Store uploaded data in request / processing
+        # Note: Since Vercel is stateless, we process the uploaded file per request.
+        # To handle category filtering seamlessly with file upload, we can keep the file processing inline:
+        if 'file' in request.files and request.files['file'].filename != '':
+            file = request.files['file']
+            filename = file.filename
+            df = pd.read_excel(io.BytesIO(file.read()))
+            
+            # Clean column names
             df.columns = df.columns.str.strip()
             
             if 'part number' in df.columns and 'quantity' in df.columns:
-                # Group by part number and description to sum up total quantities across work orders
-                agg_df = df.groupby(['part number', 'description'], as_index=False)['quantity'].sum()
+                # Extract first two letters as prefix category (e.g. IH, NM, CO)
+                df['prefix'] = df['part number'].astype(str).str[:2].str.upper()
                 
-                # Sort descending for Fast-Moving
+                # Get unique categories for dropdown filter
+                categories = sorted(df['prefix'].unique().tolist())
+                
+                # Filter by selected category if not 'ALL'
+                if selected_category and selected_category != 'ALL':
+                    filtered_df = df[df['prefix'] == selected_category]
+                else:
+                    filtered_df = df
+
+                # Aggregate by part number and description
+                agg_df = filtered_df.groupby(['prefix', 'part number', 'description'], as_index=False)['quantity'].sum()
+                
+                # Sort for fast and slow moving
                 fast_df = agg_df.sort_values(by='quantity', ascending=False)
-                
-                # Sort ascending for Slow-Moving
                 slow_df = agg_df.sort_values(by='quantity', ascending=True)
                 
-                # Assign Velocity Tiers based on cumulative totals or ranking
-                total_rows = len(agg_df)
-                fast_cutoff = max(1, int(total_rows * 0.2))
-                
-                # Prepare top lists for charts (Top 10)
                 top_fast = fast_df.head(10).to_dict(orient='records')
                 top_slow = slow_df.head(10).to_dict(orient='records')
-                
-                # Full table data for display
                 table_data = fast_df.to_dict(orient='records')
-            else:
-                table_data = df.head(100).to_dict(orient='records')
 
     return render_template(
         'index.html', 
         tables=table_data, 
         filename=filename,
         top_fast=top_fast,
-        top_slow=top_slow
+        top_slow=top_slow,
+        categories=categories,
+        selected_category=selected_category
     )
 
 @app.route('/download-sample')
@@ -68,7 +77,6 @@ def download_sample():
     idx = 1
     for wo in range(1000000001, 1000000021):
         for i in range(10):
-            # Format: 2 letters + 8 digits = 10 characters (e.g., DI17627040)
             pref = random.choice(prefixes)
             num_str = f"{random.randint(1, 99999999):08d}"
             part_num = f"{pref}{num_str[-8:]}"

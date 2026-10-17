@@ -12,20 +12,31 @@
         <header class="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-gray-900">Velocity-Based Inventory Dashboard</h1>
-                <p class="text-gray-600 mt-1">Upload your material extraction Excel sheet to analyze movement speed and quantities.</p>
+                <p class="text-gray-600 mt-1">Upload your material sheet and filter by part number category prefix (e.g., IH, NM).</p>
             </div>
             <a href="/download-sample" class="bg-emerald-600 text-white font-medium px-5 py-2.5 rounded-lg hover:bg-emerald-700 transition flex items-center gap-2 shadow-sm">
                 📥 Download Sample Excel Format
             </a>
         </header>
 
-        <!-- Upload Form -->
+        <!-- Upload & Filter Form -->
         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
-            <form action="/" method="POST" enctype="multipart/form-data" class="flex flex-col sm:flex-row items-center gap-4">
+            <form action="/" method="POST" enctype="multipart/form-data" class="flex flex-col md:flex-row items-center gap-4">
                 <input type="file" name="file" accept=".xlsx, .xls" required
                     class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
-                <button type="submit" class="w-full sm:w-auto bg-blue-600 text-white font-medium px-6 py-2 rounded-lg hover:bg-blue-700 transition">
-                    Upload & Visualize
+                
+                <div class="w-full md:w-64 flex items-center gap-2">
+                    <label class="text-sm font-medium text-gray-700 whitespace-nowrap">Filter Prefix:</label>
+                    <select name="category" class="w-full border border-gray-300 rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500">
+                        <option value="ALL">ALL Categories</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if selected_category == cat %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <button type="submit" class="w-full md:w-auto bg-blue-600 text-white font-medium px-6 py-2 rounded-lg hover:bg-blue-700 transition whitespace-nowrap">
+                    Process & Analyze
                 </button>
             </form>
         </div>
@@ -35,14 +46,14 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             <!-- Fast Moving Chart -->
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">🔥 Top 10 Fast-Moving Parts (Highest Quantity)</h3>
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">🔥 Top Fast-Moving Parts {% if selected_category != 'ALL' %}({{ selected_category }}){% endif %}</h3>
                 <div class="relative h-72">
                     <canvas id="fastMovingChart"></canvas>
                 </div>
             </div>
             <!-- Slow Moving Chart -->
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">❄️ Top 10 Slow-Moving Parts (Lowest Quantity)</h3>
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">❄️ Top Slow-Moving Parts {% if selected_category != 'ALL' %}({{ selected_category }}){% endif %}</h3>
                 <div class="relative h-72">
                     <canvas id="slowMovingChart"></canvas>
                 </div>
@@ -52,13 +63,14 @@
         <!-- Data Table Section -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center">
-                <h2 class="text-xl font-semibold text-gray-800">Aggregated Material Movement Summary</h2>
-                <span class="text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">File: {{ filename }}</span>
+                <h2 class="text-xl font-semibold text-gray-800">Aggregated Movement Summary</h2>
+                <span class="text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">File: {{ filename }} | Category: {{ selected_category }}</span>
             </div>
             <div class="overflow-x-auto max-h-[500px]">
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-gray-100 text-gray-700 text-xs uppercase tracking-wider sticky top-0">
+                            <th class="py-3 px-4 border-b">Prefix</th>
                             <th class="py-3 px-4 border-b">Part Number</th>
                             <th class="py-3 px-4 border-b">Description</th>
                             <th class="py-3 px-4 border-b">Total Quantity</th>
@@ -67,6 +79,7 @@
                     <tbody class="divide-y divide-gray-200 text-sm text-gray-600">
                         {% for row in tables %}
                         <tr class="hover:bg-gray-50">
+                            <td class="py-3 px-4 font-bold text-indigo-600">{{ row['prefix'] }}</td>
                             <td class="py-3 px-4 font-medium text-gray-900">{{ row['part number'] }}</td>
                             <td class="py-3 px-4">{{ row['description'] }}</td>
                             <td class="py-3 px-4 font-semibold text-blue-600">{{ row['quantity'] }}</td>
@@ -82,7 +95,6 @@
             const fastData = {{ top_fast | tojson }};
             const slowData = {{ top_slow | tojson }};
 
-            // Fast Moving Bar Chart
             new Chart(document.getElementById('fastMovingChart'), {
                 type: 'bar',
                 data: {
@@ -98,7 +110,6 @@
                 options: { responsive: true, maintainAspectRatio: false }
             });
 
-            // Slow Moving Bar Chart
             new Chart(document.getElementById('slowMovingChart'), {
                 type: 'bar',
                 data: {

@@ -9,14 +9,8 @@ app = Flask(__name__, template_folder='../templates')
 def index():
     table_data = None
     filename = None
-    top_fast = []
-    top_slow = []
-    categories = []
-    selected_category = 'ALL'
     
     if request.method == 'POST':
-        selected_category = request.form.get('category', 'ALL')
-        
         if 'file' in request.files:
             file = request.files['file']
             if file.filename != '':
@@ -29,42 +23,20 @@ def index():
                     df.columns = df.columns.str.strip()
                     
                     if 'part number' in df.columns and 'quantity' in df.columns:
-                        # Automatically detect the first two letters of the part number as the category prefix
+                        # Extract first two letters as prefix category (e.g. IH, NM, CO)
                         df['prefix'] = df['part number'].astype(str).str[:2].str.upper()
                         
-                        # Extract unique categories found in this specific uploaded file
-                        categories = sorted(df['prefix'].unique().tolist())
+                        # Aggregate quantities per part number
+                        agg_df = df.groupby(['prefix', 'part number', 'description'], as_index=False)['quantity'].sum()
                         
-                        # Filter by selected category if user chose one after processing
-                        if selected_category and selected_category != 'ALL':
-                            filtered_df = df[df['prefix'] == selected_category]
-                        else:
-                            filtered_df = df
-
-                        # Aggregate movement quantities
-                        agg_df = filtered_df.groupby(['prefix', 'part number', 'description'], as_index=False)['quantity'].sum()
-                        
-                        fast_df = agg_df.sort_values(by='quantity', ascending=False)
-                        slow_df = agg_df.sort_values(by='quantity', ascending=True)
-                        
-                        top_fast = fast_df.head(10).to_dict(orient='records')
-                        top_slow = slow_df.head(10).to_dict(orient='records')
-                        table_data = fast_df.to_dict(orient='records')
+                        table_data = agg_df.sort_values(by='quantity', ascending=False).to_dict(orient='records')
                     else:
                         table_data = df.head(100).to_dict(orient='records')
                 except Exception as e:
                     print(f"Error processing file: {e}")
                     table_data = None
 
-    return render_template(
-        'index.html', 
-        tables=table_data, 
-        filename=filename,
-        top_fast=top_fast,
-        top_slow=top_slow,
-        categories=categories,
-        selected_category=selected_category
-    )
+    return render_template('index.html', tables=table_data, filename=filename)
 
 @app.route('/download-sample')
 def download_sample():

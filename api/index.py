@@ -23,17 +23,13 @@ def index():
                     df.columns = df.columns.str.strip()
                     
                     if 'part number' in df.columns and 'quantity' in df.columns:
-                        # Extract first two letters as prefix category (e.g. IH, NM, CO)
                         df['prefix'] = df['part number'].astype(str).str[:2].str.upper()
-                        
-                        # Aggregate quantities per part number
                         agg_df = df.groupby(['prefix', 'part number', 'description'], as_index=False)['quantity'].sum()
-                        
                         table_data = agg_df.sort_values(by='quantity', ascending=False).to_dict(orient='records')
                     else:
                         table_data = df.head(100).to_dict(orient='records')
                 except Exception as e:
-                    print(f"Error processing file: {e}")
+                    print(f"Error: {e}")
                     table_data = None
 
     return render_template('index.html', tables=table_data, filename=filename)

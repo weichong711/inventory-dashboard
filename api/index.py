@@ -12,51 +12,52 @@ def index():
     top_fast = []
     top_slow = []
     categories = []
-    selected_category = request.form.get('category', 'ALL') if request.method == 'POST' else 'ALL'
+    selected_category = 'ALL'
     
     if request.method == 'POST':
-        # Check if file was uploaded or if we are filtering an existing session
-        # In a serverless stateless setup, we read from file upload
-        if 'file' in request.files and request.files['file'].filename != '':
+        selected_category = request.form.get('category', 'ALL')
+        
+        # Check if file is actually attached in the request
+        if 'file' in request.files:
             file = request.files['file']
-            filename = file.filename
-            file_bytes = file.read()
-            df = pd.read_excel(io.BytesIO(file_bytes))
-            
-            # Store uploaded data in request / processing
-        # Note: Since Vercel is stateless, we process the uploaded file per request.
-        # To handle category filtering seamlessly with file upload, we can keep the file processing inline:
-        if 'file' in request.files and request.files['file'].filename != '':
-            file = request.files['file']
-            filename = file.filename
-            df = pd.read_excel(io.BytesIO(file.read()))
-            
-            # Clean column names
-            df.columns = df.columns.str.strip()
-            
-            if 'part number' in df.columns and 'quantity' in df.columns:
-                # Extract first two letters as prefix category (e.g. IH, NM, CO)
-                df['prefix'] = df['part number'].astype(str).str[:2].str.upper()
-                
-                # Get unique categories for dropdown filter
-                categories = sorted(df['prefix'].unique().tolist())
-                
-                # Filter by selected category if not 'ALL'
-                if selected_category and selected_category != 'ALL':
-                    filtered_df = df[df['prefix'] == selected_category]
-                else:
-                    filtered_df = df
+            if file.filename != '':
+                filename = file.filename
+                try:
+                    file_bytes = file.read()
+                    df = pd.read_excel(io.BytesIO(file_bytes))
+                    
+                    # Clean column names (strip trailing spaces)
+                    df.columns = df.columns.str.strip()
+                    
+                    if 'part number' in df.columns and 'quantity' in df.columns:
+                        # Extract first two letters as prefix category (e.g. IH, NM, CO)
+                        df['prefix'] = df['part number'].astype(str).str[:2].str.upper()
+                        
+                        # Get unique categories for dropdown filter
+                        categories = sorted(df['prefix'].unique().tolist())
+                        
+                        # Filter by selected category if not 'ALL'
+                        if selected_category and selected_category != 'ALL':
+                            filtered_df = df[df['prefix'] == selected_category]
+                        else:
+                        
+                            filtered_df = df
 
-                # Aggregate by part number and description
-                agg_df = filtered_df.groupby(['prefix', 'part number', 'description'], as_index=False)['quantity'].sum()
-                
-                # Sort for fast and slow moving
-                fast_df = agg_df.sort_values(by='quantity', ascending=False)
-                slow_df = agg_df.sort_values(by='quantity', ascending=True)
-                
-                top_fast = fast_df.head(10).to_dict(orient='records')
-                top_slow = slow_df.head(10).to_dict(orient='records')
-                table_data = fast_df.to_dict(orient='records')
+                        # Aggregate by prefix, part number, and description
+                        agg_df = filtered_df.groupby(['prefix', 'part number', 'description'], as_index=False)['quantity'].sum()
+                        
+                        # Sort for fast and slow moving
+                        fast_df = agg_df.sort_values(by='quantity', ascending=False)
+                        slow_df = agg_df.sort_values(by='quantity', ascending=True)
+                        
+                        top_fast = fast_df.head(10).to_dict(orient='records')
+                        top_slow = slow_df.head(10).to_dict(orient='records')
+                        table_data = fast_df.to_dict(orient='records')
+                    else:
+                        table_data = df.head(100).to_dict(orient='records')
+                except Exception as e:
+                    print(f"Error processing file: {e}")
+                    table_data = None
 
     return render_template(
         'index.html', 

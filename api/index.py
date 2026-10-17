@@ -17,11 +17,14 @@ def index():
                 filename = file.filename
                 try:
                     file_bytes = file.read()
-                    # Read Excel without assuming header names
-                    df = pd.read_excel(io.BytesIO(file_bytes), header=None)
                     
-                    # Skip the first row (headers in any language) and map strictly by column position:
-                    # Column 1 = Work Order, Column 2 = Part Number, Column 3 = Description, Column 4 = Quantity
+                    # Automatically check file type and read accordingly
+                    if filename.endswith('.csv'):
+                        df = pd.read_csv(io.BytesIO(file_bytes), header=None)
+                    else:
+                        df = pd.read_excel(io.BytesIO(file_bytes), header=None)
+                    
+                    # Map strictly by column position (Index 1 = Work Order, 2 = Part Number, 3 = Description, 4 = Quantity)
                     clean_df = df.iloc[1:].copy()
                     
                     parsed_df = pd.DataFrame({
@@ -31,10 +34,10 @@ def index():
                         'quantity': pd.to_numeric(clean_df.iloc[:, 4], errors='coerce').fillna(0).values
                     })
                     
-                    # Extract first two letters as prefix category regardless of language
+                    # Extract first two letters as category prefix
                     parsed_df['prefix'] = parsed_df['part number'].str[:2].str.upper()
                     
-                    # Aggregate quantities per part number and description
+                    # Aggregate quantities to prevent browser freezing
                     agg_df = parsed_df.groupby(['prefix', 'part number', 'description'], as_index=False)['quantity'].sum()
                     
                     table_data = agg_df.sort_values(by='quantity', ascending=False).to_dict(orient='records')
@@ -57,29 +60,26 @@ def download_sample():
             num_str = f"{random.randint(1, 99999999):08d}"
             part_num = f"{pref}{num_str[-8:]}"
             
-            desc = random.choice(letters)
-            qty = random.randint(1, 50)
-            
             rows.append({
                 'index': idx,
                 'work order': wo,
                 'part number': part_num,
-                'description': desc,
-                'quantity': qty
+                'description': random.choice(letters),
+                'quantity': random.randint(1, 50)
             })
             idx += 1
             
     df = pd.DataFrame(rows)
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, header=['', '工单', '物料', '名字', '数量'])
+    # Export as CSV for fast and lightweight handling
+    df.to_csv(output, index=False, header=['', '工单', '物料', '名字', '数量'])
     output.seek(0)
     
     return send_file(
         output,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        mimetype='text/csv',
         as_attachment=True,
-        download_name='filled_dataset.xlsx'
+        download_name='filled_dataset.csv'
     )
 
 if __name__ == '__main__':

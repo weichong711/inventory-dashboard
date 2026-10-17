@@ -92,8 +92,6 @@
 
         <!-- JavaScript for Instant Dropdown Filtering & Charts -->
         <script>
-            let allData = {{ tables | tojson0 }};
-            // Fallback parsing if needed
             const rawData = [
                 {% for row in tables %}
                 { prefix: "{{ row['prefix'] }}", part: "{{ row['part number'] }}", desc: "{{ row['description'] }}", quantity: {{ row['quantity'] }} },
@@ -113,12 +111,10 @@
             let fastChart, slowChart;
 
             function updateCharts(dataToRender) {
-                // Sort descending for fast moving, ascending for slow moving
                 let sorted = [...dataToRender].sort((a, b) => b.quantity - a.quantity);
                 let topFast = sorted.slice(0, 10);
                 let topSlow = [...dataToRender].sort((a, b) => a.quantity - b.quantity).slice(0, 10);
 
-                // Fast Chart
                 if (fastChart) fastChart.destroy();
                 fastChart = new Chart(document.getElementById('fastMovingChart'), {
                     type: 'bar',
@@ -129,7 +125,6 @@
                     options: { responsive: true, maintainAspectRatio: false }
                 });
 
-                // Slow Chart
                 if (slowChart) slowChart.destroy();
                 slowChart = new Chart(document.getElementById('slowMovingChart'), {
                     type: 'bar',
@@ -161,7 +156,6 @@
                 updateCharts(filteredData);
             }
 
-            // Initialize on load
             updateCharts(rawData);
         </script>
         {% endif %}

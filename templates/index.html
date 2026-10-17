@@ -12,55 +12,49 @@
         <header class="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-gray-900">Velocity-Based Inventory Dashboard</h1>
-                <p class="text-gray-600 mt-1">Upload your material sheet to analyze movement speed and dynamically filter by detected part prefixes.</p>
+                <p class="text-gray-600 mt-1">Upload your material sheet to analyze movement speed and filter by part prefixes.</p>
             </div>
             <a href="/download-sample" class="bg-emerald-600 text-white font-medium px-5 py-2.5 rounded-lg hover:bg-emerald-700 transition flex items-center gap-2 shadow-sm">
                 📥 Download Sample Excel Format
             </a>
         </header>
 
-        <!-- Step 1: Upload Form -->
+        <!-- Upload Form -->
         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
             <form action="/" method="POST" enctype="multipart/form-data" class="flex flex-col md:flex-row items-center gap-4">
                 <input type="file" name="file" accept=".xlsx, .xls" required
                     class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
-                
                 <button type="submit" class="w-full md:w-auto bg-blue-600 text-white font-medium px-6 py-2 rounded-lg hover:bg-blue-700 transition whitespace-nowrap">
-                    Process & Detect Categories
+                    Process & Analyze
                 </button>
             </form>
         </div>
 
         {% if tables %}
-        <!-- Step 2: Category Filter Bar (Only appears after processing) -->
+        <!-- Category Filter Bar -->
         <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div class="flex items-center gap-2">
                 <span class="inline-block w-3 h-3 bg-green-500 rounded-full"></span>
                 <span class="text-sm font-medium text-gray-700">File Loaded: <b>{{ filename }}</b></span>
             </div>
-            
-            <form action="/" method="POST" enctype="multipart/form-data" class="flex items-center gap-3 w-full sm:w-auto">
-                <!-- Keep hidden input or prompt user to re-select if needed, or filter via javascript -->
-                <label class="text-sm font-medium text-gray-700 whitespace-nowrap">Filter Category Prefix:</label>
-                <select name="category" onchange="this.form.submit()" class="border border-gray-300 rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500">
-                    <option value="ALL">ALL Categories ({{ categories | length }} detected)</option>
-                    {% for cat in categories %}
-                    <option value="{{ cat }}" {% if selected_category == cat %}selected{% endif %}>{{ cat }}</option>
-                    {% endfor %}
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+                <label class="text-sm font-medium text-gray-700 whitespace-nowrap">Filter Category:</label>
+                <select id="categoryFilter" onchange="filterData()" class="border border-gray-300 rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500">
+                    <option value="ALL">ALL Categories</option>
                 </select>
-            </form>
+            </div>
         </div>
 
         <!-- Visualizations Section -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">🔥 Top Fast-Moving Parts {% if selected_category != 'ALL' %}({{ selected_category }}){% endif %}</h3>
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">🔥 Top 10 Fast-Moving Parts</h3>
                 <div class="relative h-72">
                     <canvas id="fastMovingChart"></canvas>
                 </div>
             </div>
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">❄️ Top Slow-Moving Parts {% if selected_category != 'ALL' %}({{ selected_category }}){% endif %}</h3>
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">❄️ Top 10 Slow-Moving Parts</h3>
                 <div class="relative h-72">
                     <canvas id="slowMovingChart"></canvas>
                 </div>
@@ -71,10 +65,9 @@
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center">
                 <h2 class="text-xl font-semibold text-gray-800">Aggregated Movement Summary</h2>
-                <span class="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">Active Category: {{ selected_category }}</span>
             </div>
             <div class="overflow-x-auto max-h-[500px]">
-                <table class="w-full text-left border-collapse">
+                <table id="summaryTable" class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-gray-100 text-gray-700 text-xs uppercase tracking-wider sticky top-0">
                             <th class="py-3 px-4 border-b">Prefix</th>
@@ -85,11 +78,11 @@
                     </thead>
                     <tbody class="divide-y divide-gray-200 text-sm text-gray-600">
                         {% for row in tables %}
-                        <tr class="hover:bg-gray-50">
+                        <tr class="data-row" data-prefix="{{ row['prefix'] }}">
                             <td class="py-3 px-4 font-bold text-indigo-600">{{ row['prefix'] }}</td>
-                            <td class="py-3 px-4 font-medium text-gray-900">{{ row['part number'] }}</td>
+                            <td class="py-3 px-4 font-medium text-gray-900 part-num">{{ row['part number'] }}</td>
                             <td class="py-3 px-4">{{ row['description'] }}</td>
-                            <td class="py-3 px-4 font-semibold text-blue-600">{{ row['quantity'] }}</td>
+                            <td class="py-3 px-4 font-semibold text-blue-600 qty" data-val="{{ row['quantity'] }}">{{ row['quantity'] }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -97,40 +90,79 @@
             </div>
         </div>
 
-        <!-- Chart.js Script Initialization -->
+        <!-- JavaScript for Instant Dropdown Filtering & Charts -->
         <script>
-            const fastData = {{ top_fast | tojson }};
-            const slowData = {{ top_slow | tojson }};
+            let allData = {{ tables | tojson0 }};
+            // Fallback parsing if needed
+            const rawData = [
+                {% for row in tables %}
+                { prefix: "{{ row['prefix'] }}", part: "{{ row['part number'] }}", desc: "{{ row['description'] }}", quantity: {{ row['quantity'] }} },
+                {% endfor %}
+            ];
 
-            new Chart(document.getElementById('fastMovingChart'), {
-                type: 'bar',
-                data: {
-                    labels: fastData.map(item => item['part number']),
-                    datasets: [{
-                        label: 'Total Quantity',
-                        data: fastData.map(item => item['quantity']),
-                        backgroundColor: 'rgba(239, 68, 68, 0.7)',
-                        borderColor: 'rgb(239, 68, 68)',
-                        borderWidth: 1
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
+            // Populate category dropdown dynamically from data
+            const prefixes = [...new Set(rawData.map(item => item.prefix))].sort();
+            const dropdown = document.getElementById('categoryFilter');
+            prefixes.forEach(p => {
+                let opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = p;
+                dropdown.appendChild(opt);
             });
 
-            new Chart(document.getElementById('slowMovingChart'), {
-                type: 'bar',
-                data: {
-                    labels: slowData.map(item => item['part number']),
-                    datasets: [{
-                        label: 'Total Quantity',
-                        data: slowData.map(item => item['quantity']),
-                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
-                        borderColor: 'rgb(59, 130, 246)',
-                        borderWidth: 1
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false }
-            });
+            let fastChart, slowChart;
+
+            function updateCharts(dataToRender) {
+                // Sort descending for fast moving, ascending for slow moving
+                let sorted = [...dataToRender].sort((a, b) => b.quantity - a.quantity);
+                let topFast = sorted.slice(0, 10);
+                let topSlow = [...dataToRender].sort((a, b) => a.quantity - b.quantity).slice(0, 10);
+
+                // Fast Chart
+                if (fastChart) fastChart.destroy();
+                fastChart = new Chart(document.getElementById('fastMovingChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: topFast.map(i => i.part),
+                        datasets: [{ label: 'Quantity', data: topFast.map(i => i.quantity), backgroundColor: 'rgba(239, 68, 68, 0.7)' }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+
+                // Slow Chart
+                if (slowChart) slowChart.destroy();
+                slowChart = new Chart(document.getElementById('slowMovingChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: topSlow.map(i => i.part),
+                        datasets: [{ label: 'Quantity', data: topSlow.map(i => i.quantity), backgroundColor: 'rgba(59, 130, 246, 0.7)' }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            }
+
+            function filterData() {
+                let selected = dropdown.value;
+                let rows = document.querySelectorAll('.data-row');
+                let filteredData = [];
+
+                rows.forEach(row => {
+                    let p = row.getAttribute('data-prefix');
+                    if (selected === 'ALL' || p === selected) {
+                        row.style.display = '';
+                        let part = row.querySelector('.part-num').textContent;
+                        let qty = parseInt(row.querySelector('.qty').getAttribute('data-val'));
+                        filteredData.push({ part: part, quantity: qty });
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+
+                updateCharts(filteredData);
+            }
+
+            // Initialize on load
+            updateCharts(rawData);
         </script>
         {% endif %}
     </div>

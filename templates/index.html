@@ -12,7 +12,7 @@
         <header class="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
                 <h1 class="text-3xl font-bold text-gray-900">Velocity-Based Inventory Dashboard</h1>
-                <p class="text-gray-600 mt-1">Upload your material sheet to analyze movement speed and filter by part prefixes.</p>
+                <p class="text-gray-600 mt-1">Upload your material sheet to analyze movement speed, filter categories, and search parts.</p>
             </div>
             <a href="/download-sample" class="bg-emerald-600 text-white font-medium px-5 py-2.5 rounded-lg hover:bg-emerald-700 transition flex items-center gap-2 shadow-sm">
                 📥 Download Sample Excel Format
@@ -31,30 +31,53 @@
         </div>
 
         {% if tables %}
-        <!-- Category Filter Bar -->
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <!-- Big Master Search Bar at the Top -->
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 rounded-xl shadow-md mb-8 text-white">
+            <label class="block text-sm font-semibold mb-2 tracking-wide uppercase">🔍 Master Material Search (Find required quantities by part number):</label>
+            <input type="text" id="masterSearch" oninput="filterData()" placeholder="Type part number (e.g. IH00000079, NM...) or description..."
+                class="w-full px-4 py-3 rounded-lg text-gray-900 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white text-base shadow-inner">
+        </div>
+
+        <!-- Filter & Multiple Category Selection Bar -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
             <div class="flex items-center gap-2">
                 <span class="inline-block w-3 h-3 bg-green-500 rounded-full"></span>
                 <span class="text-sm font-medium text-gray-700">File Loaded: <b>{{ filename }}</b></span>
             </div>
-            <div class="flex items-center gap-3 w-full sm:w-auto">
-                <label class="text-sm font-medium text-gray-700 whitespace-nowrap">Filter Category:</label>
-                <select id="categoryFilter" onchange="filterData()" class="border border-gray-300 rounded-lg p-2 text-sm bg-white focus:ring-2 focus:ring-blue-500">
-                    <option value="ALL">ALL Categories</option>
-                </select>
+            
+            <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <span class="text-sm font-medium text-gray-700 whitespace-nowrap">Multi-Prefix Categories:</span>
+                    <button type="button" onclick="toggleCategoryDropdown()" class="border border-gray-300 rounded-lg px-4 py-2 text-sm bg-white hover:bg-gray-50 flex items-center justify-between w-48 shadow-sm">
+                        <span id="dropdownButtonText">Select Prefixes</span>
+                        <span>▼</span>
+                    </button>
+                </div>
+
+                <!-- Checkbox Dropdown Container -->
+                <div id="categoryDropdownContent" class="hidden absolute z-10 mt-32 bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-56 max-h-60 overflow-y-auto">
+                    <div class="flex justify-between items-center mb-2 border-b pb-1">
+                        <span class="text-xs font-bold text-gray-500">SELECT PREFIXES</span>
+                        <button type="button" onclick="selectAllCategories(true)" class="text-xs text-blue-600 hover:underline">All</button>
+                        <button type="button" onclick="selectAllCategories(false)" class="text-xs text-red-600 hover:underline">Clear</button>
+                    </div>
+                    <div id="categoryCheckboxes" class="space-y-2">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- Visualizations Section -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">🔥 Top 10 Fast-Moving Parts</h3>
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">🔥 Top Fast-Moving Parts</h3>
                 <div class="relative h-72">
                     <canvas id="fastMovingChart"></canvas>
                 </div>
             </div>
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">❄️ Top 10 Slow-Moving Parts</h3>
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">❄️ Top Slow-Moving Parts</h3>
                 <div class="relative h-72">
                     <canvas id="slowMovingChart"></canvas>
                 </div>
@@ -64,7 +87,7 @@
         <!-- Data Table Section -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center">
-                <h2 class="text-xl font-semibold text-gray-800">Aggregated Movement Summary</h2>
+                <h2 class="text-xl font-semibold text-gray-800">Aggregated Movement & Required Quantity Summary</h2>
             </div>
             <div class="overflow-x-auto max-h-[500px]">
                 <table id="summaryTable" class="w-full text-left border-collapse">
@@ -73,15 +96,15 @@
                             <th class="py-3 px-4 border-b">Prefix</th>
                             <th class="py-3 px-4 border-b">Part Number</th>
                             <th class="py-3 px-4 border-b">Description</th>
-                            <th class="py-3 px-4 border-b">Total Quantity</th>
+                            <th class="py-3 px-4 border-b">Total Quantity Required</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 text-sm text-gray-600">
                         {% for row in tables %}
                         <tr class="data-row" data-prefix="{{ row['prefix'] }}">
-                            <td class="py-3 px-4 font-bold text-indigo-600">{{ row['prefix'] }}</td>
+                            <td class="py-3 px-4 font-bold text-indigo-600 prefix-cell">{{ row['prefix'] }}</td>
                             <td class="py-3 px-4 font-medium text-gray-900 part-num">{{ row['part number'] }}</td>
-                            <td class="py-3 px-4">{{ row['description'] }}</td>
+                            <td class="py-3 px-4 desc-cell">{{ row['description'] }}</td>
                             <td class="py-3 px-4 font-semibold text-blue-600 qty" data-val="{{ row['quantity'] }}">{{ row['quantity'] }}</td>
                         </tr>
                         {% endfor %}
@@ -90,7 +113,7 @@
             </div>
         </div>
 
-        <!-- JavaScript for Instant Dropdown Filtering & Charts -->
+        <!-- JavaScript for Multi-Select Checkboxes, Search, and Charts -->
         <script>
             const rawData = [
                 {% for row in tables %}
@@ -98,14 +121,32 @@
                 {% endfor %}
             ];
 
-            // Populate category dropdown dynamically from data
+            // Populate category checkboxes dynamically
             const prefixes = [...new Set(rawData.map(item => item.prefix))].sort();
-            const dropdown = document.getElementById('categoryFilter');
+            const checkboxContainer = document.getElementById('categoryCheckboxes');
+            
             prefixes.forEach(p => {
-                let opt = document.createElement('option');
-                opt.value = p;
-                opt.textContent = p;
-                dropdown.appendChild(opt);
+                let label = document.createElement('label');
+                label.className = 'flex items-center gap-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-50 p-1 rounded';
+                label.innerHTML = `<input type="checkbox" value="${p}" checked onchange="filterData()" class="cat-checkbox rounded text-blue-600 focus:ring-blue-500"> ${p}`;
+                checkboxContainer.appendChild(label);
+            });
+
+            function toggleCategoryDropdown() {
+                let dropdown = document.getElementById('categoryDropdownContent');
+                dropdown.classList.toggle('hidden');
+            }
+
+            function selectAllCategories(status) {
+                document.querySelectorAll('.cat-checkbox').forEach(cb => cb.checked = status);
+                filterData();
+            }
+
+            // Close dropdown when clicking outside
+            window.addEventListener('click', function(e) {
+                if (!e.target.closest('#categoryDropdownContent') && !e.target.closest('button')) {
+                    document.getElementById('categoryDropdownContent').classList.add('hidden');
+                }
             });
 
             let fastChart, slowChart;
@@ -120,7 +161,7 @@
                     type: 'bar',
                     data: {
                         labels: topFast.map(i => i.part),
-                        datasets: [{ label: 'Quantity', data: topFast.map(i => i.quantity), backgroundColor: 'rgba(239, 68, 68, 0.7)' }]
+                        datasets: [{ label: 'Total Quantity', data: topFast.map(i => i.quantity), backgroundColor: 'rgba(239, 68, 68, 0.7)' }]
                     },
                     options: { responsive: true, maintainAspectRatio: false }
                 });
@@ -130,24 +171,34 @@
                     type: 'bar',
                     data: {
                         labels: topSlow.map(i => i.part),
-                        datasets: [{ label: 'Quantity', data: topSlow.map(i => i.quantity), backgroundColor: 'rgba(59, 130, 246, 0.7)' }]
+                        datasets: [{ label: 'Total Quantity', data: topSlow.map(i => i.quantity), backgroundColor: 'rgba(59, 130, 246, 0.7)' }]
                     },
                     options: { responsive: true, maintainAspectRatio: false }
                 });
             }
 
             function filterData() {
-                let selected = dropdown.value;
+                let searchQuery = document.getElementById('masterSearch').value.toLowerCase().trim();
+                let selectedPrefixes = Array.from(document.querySelectorAll('.cat-checkbox:checked')).map(cb => cb.value);
+                
                 let rows = document.querySelectorAll('.data-row');
                 let filteredData = [];
 
+                let activeCount = selectedPrefixes.length;
+                document.getElementById('dropdownButtonText').textContent = activeCount === prefixes.length ? 'All Prefixes Selected' : `${activeCount} Selected`;
+
                 rows.forEach(row => {
                     let p = row.getAttribute('data-prefix');
-                    if (selected === 'ALL' || p === selected) {
+                    let partNum = row.querySelector('.part-num').textContent.toLowerCase();
+                    let desc = row.querySelector('.desc-cell').textContent.toLowerCase();
+                    let qty = parseInt(row.querySelector('.qty').getAttribute('data-val'));
+
+                    let matchesCategory = selectedPrefixes.includes(p);
+                    let matchesSearch = searchQuery === '' || partNum.includes(searchQuery) || desc.includes(searchQuery);
+
+                    if (matchesCategory && matchesSearch) {
                         row.style.display = '';
-                        let part = row.querySelector('.part-num').textContent;
-                        let qty = parseInt(row.querySelector('.qty').getAttribute('data-val'));
-                        filteredData.push({ part: part, quantity: qty });
+                        filteredData.push({ part: row.querySelector('.part-num').textContent, quantity: qty });
                     } else {
                         row.style.display = 'none';
                     }
@@ -156,6 +207,7 @@
                 updateCharts(filteredData);
             }
 
+            // Initialize on load
             updateCharts(rawData);
         </script>
         {% endif %}

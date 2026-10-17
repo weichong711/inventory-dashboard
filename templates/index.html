@@ -1,1 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Velocity-Based Material Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gray-50 min-h-screen p-8">
+    <div class="max-w-6xl mx-auto">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-900">Material Movement & Velocity Dashboard</h1>
+            <p class="text-gray-600 mt-1">Upload your inventory extraction Excel file to automatically sort fast-moving BOM components.</p>
+        </header>
 
+        <!-- Upload Form -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+            <form action="/" method="POST" enctype="multipart/form-data" class="flex flex-col sm:flex-row items-center gap-4">
+                <input type="file" name="file" accept=".xlsx, .xls" required
+                    class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+                <button type="submit" class="w-full sm:w-auto bg-blue-600 text-white font-medium px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+                    Process & Sort
+                </button>
+            </form>
+        </div>
+
+        {% if tables %}
+        <!-- Results Section -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                <h2 class="text-xl font-semibold text-gray-800">Sorted Analysis Results</h2>
+                <span class="text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">File: {{ filename }}</span>
+            </div>
+            <div class="overflow-x-auto max-h-[600px]">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-700 text-xs uppercase tracking-wider sticky top-0">
+                            {% for key in tables[0].keys() %}
+                            <th class="py-3 px-4 border-b">{{ key }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 text-sm text-gray-600">
+                        {% for row in tables %}
+                        <tr class="hover:bg-gray-50">
+                            {% for val in row.values() %}
+                            <td class="py-3 px-4 whitespace-nowrap">
+                                {% if val == 'Fast-Moving' %}
+                                <span class="bg-red-100 text-red-700 px-2 py-1 rounded font-semibold text-xs">{{ val }}</span>
+                                {% elif val == 'Medium-Moving' %}
+                                <span class="bg-amber-100 text-amber-700 px-2 py-1 rounded font-semibold text-xs">{{ val }}</span>
+                                {% else %}
+                                {{ val }}
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

@@ -17,7 +17,6 @@ def index():
     if request.method == 'POST':
         selected_category = request.form.get('category', 'ALL')
         
-        # Check if file is actually attached in the request
         if 'file' in request.files:
             file = request.files['file']
             if file.filename != '':
@@ -26,27 +25,25 @@ def index():
                     file_bytes = file.read()
                     df = pd.read_excel(io.BytesIO(file_bytes))
                     
-                    # Clean column names (strip trailing spaces)
+                    # Clean column names
                     df.columns = df.columns.str.strip()
                     
                     if 'part number' in df.columns and 'quantity' in df.columns:
-                        # Extract first two letters as prefix category (e.g. IH, NM, CO)
+                        # Automatically detect the first two letters of the part number as the category prefix
                         df['prefix'] = df['part number'].astype(str).str[:2].str.upper()
                         
-                        # Get unique categories for dropdown filter
+                        # Extract unique categories found in this specific uploaded file
                         categories = sorted(df['prefix'].unique().tolist())
                         
-                        # Filter by selected category if not 'ALL'
+                        # Filter by selected category if user chose one after processing
                         if selected_category and selected_category != 'ALL':
                             filtered_df = df[df['prefix'] == selected_category]
                         else:
-                        
                             filtered_df = df
 
-                        # Aggregate by prefix, part number, and description
+                        # Aggregate movement quantities
                         agg_df = filtered_df.groupby(['prefix', 'part number', 'description'], as_index=False)['quantity'].sum()
                         
-                        # Sort for fast and slow moving
                         fast_df = agg_df.sort_values(by='quantity', ascending=False)
                         slow_df = agg_df.sort_values(by='quantity', ascending=True)
                         

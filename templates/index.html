@@ -5,12 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Velocity-Based Material Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen p-8">
-    <div class="max-w-6xl mx-auto">
-        <header class="mb-8">
-            <h1 class="text-3xl font-bold text-gray-900">Material Movement & Velocity Dashboard</h1>
-            <p class="text-gray-600 mt-1">Upload your inventory extraction Excel file to automatically sort fast-moving BOM components.</p>
+    <div class="max-w-7xl mx-auto">
+        <header class="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Velocity-Based Inventory Dashboard</h1>
+                <p class="text-gray-600 mt-1">Upload your material extraction Excel sheet to analyze movement speed and quantities.</p>
+            </div>
+            <a href="/download-sample" class="bg-emerald-600 text-white font-medium px-5 py-2.5 rounded-lg hover:bg-emerald-700 transition flex items-center gap-2 shadow-sm">
+                📥 Download Sample Excel Format
+            </a>
         </header>
 
         <!-- Upload Form -->
@@ -19,47 +25,95 @@
                 <input type="file" name="file" accept=".xlsx, .xls" required
                     class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
                 <button type="submit" class="w-full sm:w-auto bg-blue-600 text-white font-medium px-6 py-2 rounded-lg hover:bg-blue-700 transition">
-                    Process & Sort
+                    Upload & Visualize
                 </button>
             </form>
         </div>
 
         {% if tables %}
-        <!-- Results Section -->
+        <!-- Visualizations Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <!-- Fast Moving Chart -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">🔥 Top 10 Fast-Moving Parts (Highest Quantity)</h3>
+                <div class="relative h-72">
+                    <canvas id="fastMovingChart"></canvas>
+                </div>
+            </div>
+            <!-- Slow Moving Chart -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">❄️ Top 10 Slow-Moving Parts (Lowest Quantity)</h3>
+                <div class="relative h-72">
+                    <canvas id="slowMovingChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Table Section -->
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div class="p-6 border-b border-gray-200 flex justify-between items-center">
-                <h2 class="text-xl font-semibold text-gray-800">Sorted Analysis Results</h2>
+                <h2 class="text-xl font-semibold text-gray-800">Aggregated Material Movement Summary</h2>
                 <span class="text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">File: {{ filename }}</span>
             </div>
-            <div class="overflow-x-auto max-h-[600px]">
+            <div class="overflow-x-auto max-h-[500px]">
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-gray-100 text-gray-700 text-xs uppercase tracking-wider sticky top-0">
-                            {% for key in tables[0].keys() %}
-                            <th class="py-3 px-4 border-b">{{ key }}</th>
-                            {% endfor %}
+                            <th class="py-3 px-4 border-b">Part Number</th>
+                            <th class="py-3 px-4 border-b">Description</th>
+                            <th class="py-3 px-4 border-b">Total Quantity</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 text-sm text-gray-600">
                         {% for row in tables %}
                         <tr class="hover:bg-gray-50">
-                            {% for val in row.values() %}
-                            <td class="py-3 px-4 whitespace-nowrap">
-                                {% if val == 'Fast-Moving' %}
-                                <span class="bg-red-100 text-red-700 px-2 py-1 rounded font-semibold text-xs">{{ val }}</span>
-                                {% elif val == 'Medium-Moving' %}
-                                <span class="bg-amber-100 text-amber-700 px-2 py-1 rounded font-semibold text-xs">{{ val }}</span>
-                                {% else %}
-                                {{ val }}
-                                {% endif %}
-                            </td>
-                            {% endfor %}
+                            <td class="py-3 px-4 font-medium text-gray-900">{{ row['part number'] }}</td>
+                            <td class="py-3 px-4">{{ row['description'] }}</td>
+                            <td class="py-3 px-4 font-semibold text-blue-600">{{ row['quantity'] }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
         </div>
+
+        <!-- Chart.js Script Initialization -->
+        <script>
+            const fastData = {{ top_fast | tojson }};
+            const slowData = {{ top_slow | tojson }};
+
+            // Fast Moving Bar Chart
+            new Chart(document.getElementById('fastMovingChart'), {
+                type: 'bar',
+                data: {
+                    labels: fastData.map(item => item['part number']),
+                    datasets: [{
+                        label: 'Total Quantity',
+                        data: fastData.map(item => item['quantity']),
+                        backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                        borderColor: 'rgb(239, 68, 68)',
+                        borderWidth: 1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            // Slow Moving Bar Chart
+            new Chart(document.getElementById('slowMovingChart'), {
+                type: 'bar',
+                data: {
+                    labels: slowData.map(item => item['part number']),
+                    datasets: [{
+                        label: 'Total Quantity',
+                        data: slowData.map(item => item['quantity']),
+                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                        borderColor: 'rgb(59, 130, 246)',
+                        borderWidth: 1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        </script>
         {% endif %}
     </div>
 </body>
